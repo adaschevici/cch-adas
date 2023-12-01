@@ -1,12 +1,10 @@
-use axum::{routing::get, Router};
+use axum::Router;
 
-async fn hello_world() -> &'static str {
-    "Hello, world!"
-}
+mod calendar;
 
 #[shuttle_runtime::main]
 async fn main() -> shuttle_axum::ShuttleAxum {
-    let router = Router::new().route("/", get(hello_world));
+    let router = Router::new().nest("/", calendar::router());
 
     Ok(router.into())
 }
