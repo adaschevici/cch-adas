@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.6.20"
+axum = { version = "0.6.20", features = ["headers", "http2", "macros", "multipart", "tracing", "ws"] }
+axum-extra = { version = "0.9.0", features = ["typed-header", "cookie", "cookie-key-expansion", "cookie-private", "cookie-signed", "multipart", "protobuf"] }
+base64 = "0.21.5"
 regex = "1.10.2"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
