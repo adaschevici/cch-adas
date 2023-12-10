@@ -14,7 +14,7 @@ use axum::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, json};
+use serde_json::from_str;
 
 pub fn router() -> Router {
     Router::new()
