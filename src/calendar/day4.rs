@@ -85,14 +85,14 @@ async fn contest(Json(reindeers): Json<Vec<Reindeer>>) -> String {
     let magician = find_max_by_attribute(reindeer_list.clone(), "snow_magic_power").unwrap();
     let consumer = find_max_by_attribute(reindeer_list.clone(), "candy_eaten_yesterday").unwrap();
     format!(
-        "{{ \
+        "{{\
         \"fastest\": \"Speeding past the finish line with a strenght of {} is {}\", \
         \"tallest\": \"{} is standing tall with his {} cm wide antlers\", \
         \"magician\": \"{} could blast you away with a snow magic power of {}\", \
-        \"consumer\": \"{} ate lots of candies, but also some {}\"  }}",
+        \"consumer\": \"{} ate lots of candies, but also some {}\"}}",
         fastest.strength,
         fastest.name,
-        tallest.height,
+        tallest.name,
         tallest.antler_width,
         magician.name,
         magician.snow_magic_power,

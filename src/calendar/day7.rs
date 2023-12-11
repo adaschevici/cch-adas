@@ -22,15 +22,13 @@ pub fn router() -> Router {
         .route("/7/bake", get(secret_recipe))
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct RecipeDecoder {
-    flour: u64,
-    #[serde(rename = "chocolate chips")]
-    chocolate_chips: u64,
-}
-
 type Recipe = HashMap<String, u64>;
 type Pantry = HashMap<String, u64>;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct RecipeDecoder {
+    recipe: Recipe,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Bakery {
@@ -75,6 +73,7 @@ async fn decode_recipe(ExtractCookie(cookie): ExtractCookie) -> Response {
                 .as_bytes(),
         )
         .unwrap();
+    dbg!(String::from_utf8(recipe_details.clone().to_vec()).unwrap());
     let response: RecipeDecoder =
         from_str(String::from_utf8(recipe_details).unwrap().as_str()).unwrap();
     Json(response).into_response()
@@ -83,6 +82,9 @@ async fn decode_recipe(ExtractCookie(cookie): ExtractCookie) -> Response {
 async fn calculate_max_cookies(recipe: &Recipe, pantry: &Pantry) -> u64 {
     let mut max_cookies = 0;
     for (ingredient, amount) in recipe.iter() {
+        if amount == &0 {
+            continue;
+        }
         let mut max_ingredient = 0;
         if let Some(pantry_amount) = pantry.get(ingredient) {
             max_ingredient = pantry_amount / amount;
