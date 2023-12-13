@@ -1,4 +1,4 @@
-use axum::{extract::Json, routing::post, Router};
+use axum::{extract::Json, response::IntoResponse, routing::post, Router};
 use serde::{Deserialize, Serialize};
 
 pub fn router() -> Router {
@@ -33,6 +33,8 @@ async fn strength(Json(reindeers): Json<Vec<StrongReindeer>>) -> String {
 
 fn find_max_by_attribute(reindeers: Vec<Reindeer>, attribute: &str) -> Option<Reindeer> {
     let binding = reindeers.clone();
+    dbg!(attribute);
+    dbg!(&binding);
     let mut winner: Option<Reindeer> = None;
     let mut max_attribute: u64 = 0;
     for attr in binding.iter() {
@@ -64,7 +66,7 @@ fn find_max_by_attribute(reindeers: Vec<Reindeer>, attribute: &str) -> Option<Re
             _ => panic!("Invalid attribute"),
         }
     }
-    println!("{:?}", winner);
+    dbg!(&winner);
     let winner = winner.unwrap().clone();
     Some(Reindeer {
         name: winner.name,
@@ -78,25 +80,54 @@ fn find_max_by_attribute(reindeers: Vec<Reindeer>, attribute: &str) -> Option<Re
     })
 }
 
-async fn contest(Json(reindeers): Json<Vec<Reindeer>>) -> String {
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct ContestResponse {
+    fastest: String,
+    tallest: String,
+    magician: String,
+    consumer: String,
+}
+
+impl ContestResponse {
+    fn new(
+        fastest: String,
+        tallest: String,
+        magician: String,
+        consumer: String,
+    ) -> ContestResponse {
+        ContestResponse {
+            fastest,
+            tallest,
+            magician,
+            consumer,
+        }
+    }
+}
+
+async fn contest(Json(reindeers): Json<Vec<Reindeer>>) -> impl IntoResponse {
     let reindeer_list = reindeers;
     let tallest = find_max_by_attribute(reindeer_list.clone(), "height").unwrap();
     let fastest = find_max_by_attribute(reindeer_list.clone(), "speed").unwrap();
     let magician = find_max_by_attribute(reindeer_list.clone(), "snow_magic_power").unwrap();
     let consumer = find_max_by_attribute(reindeer_list.clone(), "candy_eaten_yesterday").unwrap();
-    format!(
-        "{{\
-        \"fastest\": \"Speeding past the finish line with a strenght of {} is {}\", \
-        \"tallest\": \"{} is standing tall with his {} cm wide antlers\", \
-        \"magician\": \"{} could blast you away with a snow magic power of {}\", \
-        \"consumer\": \"{} ate lots of candies, but also some {}\"}}",
-        fastest.strength,
-        fastest.name,
-        tallest.name,
-        tallest.antler_width,
-        magician.name,
-        magician.snow_magic_power,
-        consumer.name,
-        consumer.favorite_food
-    )
+    let tallest_instr = format!(
+        "{} is standing tall with his {} cm wide antlers",
+        tallest.name, tallest.antler_width
+    );
+    let fastest_instr = format!(
+        "Speeding past the finish line with a strength of {} is {}",
+        fastest.strength, fastest.name
+    );
+    let magician_instr = format!(
+        "{} could blast you away with a snow magic power of {}",
+        magician.name, magician.snow_magic_power
+    );
+    let consumer_instr = format!(
+        "{} ate lots of candies, but also some {}",
+        consumer.name, consumer.favorite_food
+    );
+    let response =
+        ContestResponse::new(fastest_instr, tallest_instr, magician_instr, consumer_instr);
+    dbg!(&response);
+    Json(response).into_response()
 }

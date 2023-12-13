@@ -73,7 +73,6 @@ async fn decode_recipe(ExtractCookie(cookie): ExtractCookie) -> Response {
                 .as_bytes(),
         )
         .unwrap();
-    dbg!(String::from_utf8(recipe_details.clone().to_vec()).unwrap());
     let response: RecipeDecoder =
         from_str(String::from_utf8(recipe_details).unwrap().as_str()).unwrap();
     Json(response).into_response()
