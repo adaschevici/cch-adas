@@ -122,7 +122,6 @@ async fn get_popular_gifts(State(state): State<Arc<AppState>>) -> impl IntoRespo
     .await
     .unwrap();
 
-    dbg!(&gifts);
     if gifts.is_empty() {
         return Json(json!({ "popular": null })).into_response();
     }

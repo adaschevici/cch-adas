@@ -33,8 +33,6 @@ async fn strength(Json(reindeers): Json<Vec<StrongReindeer>>) -> String {
 
 fn find_max_by_attribute(reindeers: Vec<Reindeer>, attribute: &str) -> Option<Reindeer> {
     let binding = reindeers.clone();
-    dbg!(attribute);
-    dbg!(&binding);
     let mut winner: Option<Reindeer> = None;
     let mut max_attribute: u64 = 0;
     for attr in binding.iter() {
@@ -66,7 +64,6 @@ fn find_max_by_attribute(reindeers: Vec<Reindeer>, attribute: &str) -> Option<Re
             _ => panic!("Invalid attribute"),
         }
     }
-    dbg!(&winner);
     let winner = winner.unwrap().clone();
     Some(Reindeer {
         name: winner.name,
@@ -128,6 +125,5 @@ async fn contest(Json(reindeers): Json<Vec<Reindeer>>) -> impl IntoResponse {
     );
     let response =
         ContestResponse::new(fastest_instr, tallest_instr, magician_instr, consumer_instr);
-    dbg!(&response);
     Json(response).into_response()
 }
