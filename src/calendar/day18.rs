@@ -6,8 +6,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Row};
-use std::collections::HashMap;
+use sqlx::{FromRow, PgPool, Row};
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -35,7 +34,7 @@ struct RegionTotal {
     total: i64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, FromRow)]
 struct RegionTopN {
     region: String,
     top_gifts: Vec<String>,
@@ -169,72 +168,29 @@ async fn get_top_n_list_by_region(
     State(app): State<Arc<AppState>>,
     Path(number): Path<i32>,
 ) -> impl IntoResponse {
-    fn sort_strings(strings: Vec<(String, i64)>) -> Vec<String> {
-        let mut sorted_strings = strings.clone();
-        sorted_strings.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        sorted_strings.iter().map(|(s, _)| s.clone()).collect()
-    }
-    let mut tx = app.pool.begin().await.unwrap();
-    let rows = sqlx::query(
+    let top_gifts = sqlx::query_as::<_, RegionTopN>(
         r#"
-        SELECT regions.name, orders.gift_name, SUM(orders.quantity) AS total
-        FROM orders
-        INNER JOIN regions ON regions.id = orders.region_id
-        GROUP BY regions.name, orders.gift_name, orders.region_id
-        ORDER BY total DESC
+            SELECT r.name AS region,
+                array_remove(array_agg(o.gift_name), NULL) AS region_top_n
+            FROM regions r
+            LEFT JOIN LATERAL (
+                SELECT o.gift_name,
+                    sum(o.quantity) AS total_quantity
+                FROM orders o
+                WHERE o.region_id = r.id
+                GROUP BY o.gift_name
+                ORDER BY total_quantity DESC,
+                    o.gift_name ASC
+                LIMIT $1
+                ) o ON TRUE
+            GROUP BY r.name
+            ORDER BY r.name ASC
         "#,
     )
-    .fetch_all(&mut *tx)
-    .await
-    .unwrap();
-    let region_names = sqlx::query(
-        r#"
-        SELECT regions.name
-        FROM regions
-        "#,
-    )
+    .bind(number)
     .fetch_all(&app.pool)
     .await
     .unwrap();
 
-    // let mut totals = Vec::<RegionTopN>::new();
-    let mut totals = HashMap::<String, Vec<(String, i64)>>::new();
-    for row in rows {
-        if number == 0 {
-            break;
-        }
-        let name: String = row.get("name");
-        let top_gift: (String, i64) = (row.get("gift_name"), row.get("total"));
-        if !totals.contains_key(&name) {
-            totals.insert(name.clone(), vec![top_gift.clone()]);
-        } else {
-            let mut top_gifts = totals.get_mut(&name).unwrap().clone();
-            top_gifts.push(top_gift.clone());
-            if top_gifts.len() > number as usize {
-                continue;
-            }
-            totals.insert(name.clone(), top_gifts);
-        }
-    }
-
-    let mut top_n = Vec::<RegionTopN>::new();
-    for (region, gifts) in totals.clone() {
-        let sorted_gifts = sort_strings(gifts);
-        top_n.push(RegionTopN {
-            region,
-            top_gifts: sorted_gifts,
-        });
-    }
-    for region in region_names {
-        if !&totals.contains_key(&region.get::<String, _>("name")) {
-            top_n.push(RegionTopN {
-                region: region.get("name"),
-                top_gifts: vec![],
-            });
-        }
-    }
-    top_n.sort_by(|topa, topb| topa.region.cmp(&topb.region));
-    dbg!(&top_n);
-
-    Json(top_n).into_response()
+    Json(top_gifts).into_response()
 }
