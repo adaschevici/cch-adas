@@ -5,11 +5,12 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
-axum = { version = "0.6.20", features = ["multipart", "macros"] }
+axum = { version = "0.6.20", features = ["multipart", "macros", "ws"] }
 axum-template = { version = "2.0.0", features = ["tera"] }
 base64 = "0.21.5"
 chrono = "0.4.31"
 digest = "0.10.7"
+futures-util = "0.3.29"
 image = "0.24.7"
 regex = "1.10.2"
 reqwest = "0.11.22"
