@@ -1,26 +1,82 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        ConnectInfo,
+        Path, State,
     },
+    http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use std::net::SocketAddr;
+use serde::Deserialize;
+use serde_json::json;
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+use tokio::sync::broadcast;
+
+#[derive(Clone)]
+struct GameState {
+    started: bool,
+}
+
+#[derive(Clone, Debug)]
+struct TwitterState {
+    tweet_count: u64,
+    rooms: HashMap<i64, broadcast::Sender<String>>,
+}
+
+impl TwitterState {
+    fn new() -> Self {
+        Self {
+            tweet_count: 0,
+            rooms: HashMap::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.tweet_count = 0;
+        self.rooms.clear();
+    }
+
+    fn increment(&mut self) {
+        self.tweet_count += 1;
+    }
+}
+#[derive(Clone)]
+struct FeedState {
+    tweets: Arc<RwLock<TwitterState>>,
+    conn: TweetParams,
+}
+
+#[derive(Deserialize, Clone)]
+struct TweetParams {
+    room: i64,
+    name: String,
+}
 
 pub fn router() -> Router {
-    Router::new().route("/19/ws/ping", get(play_ping_pong))
+    let ping_pong_game = Router::new()
+        .route("/ws/ping", get(play_ping_pong))
+        .with_state(GameState { started: false });
+
+    let twitter = Router::new()
+        .route("/reset", post(reset_tweet_metrics))
+        .route("/views", get(get(views_count)))
+        .route("/ws/room/:id/user/:name", get(run_twitter))
+        .with_state(Arc::new(RwLock::new(TwitterState::new())));
+    Router::new()
+        .nest("/19", ping_pong_game)
+        .nest("/19", twitter)
 }
 
-async fn play_ping_pong(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket))
+async fn play_ping_pong(ws: WebSocketUpgrade, State(state): State<GameState>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ping_socket(socket, state))
 }
 
-async fn handle_socket(mut socket: WebSocket) {
-    let mut game_started = false;
-
+async fn handle_ping_socket(mut socket: WebSocket, mut state: GameState) {
     while let Some(msg) = socket.recv().await {
         let msg = match msg {
             Ok(msg) => msg,
@@ -30,13 +86,13 @@ async fn handle_socket(mut socket: WebSocket) {
             }
         };
 
-        if !game_started {
+        if !state.started {
             if msg != Message::Text("serve".to_string()) {
                 eprintln!("ignoring message, got: {:?}", msg);
                 continue;
             }
 
-            game_started = true;
+            state.started = true;
             continue;
         }
 
@@ -51,7 +107,7 @@ async fn handle_socket(mut socket: WebSocket) {
         let msg = match msg.as_str() {
             "ping" => "pong".to_string(),
             _ => {
-                eprintln!("expected 'ping' or 'pong', got: {:?}", msg);
+                eprintln!("expected 'ping' got: {:?}", msg);
                 continue;
             }
         };
@@ -61,10 +117,86 @@ async fn handle_socket(mut socket: WebSocket) {
             break;
         }
     }
-    // let (mut tx, mut rx) = socket.split();
-    //
-    // while let Some(Ok(Message::Text(text))) = rx.next().await {
-    //     dbg!(addr, &text);
-    //     tx.send(Message::Text(text)).await.unwrap();
-    // }
+}
+
+async fn reset_tweet_metrics(State(twitter): State<Arc<RwLock<TwitterState>>>) -> StatusCode {
+    twitter
+        .write()
+        .expect("Could not acquire write lock")
+        .reset();
+    StatusCode::OK
+}
+
+async fn views_count(State(twitter): State<Arc<RwLock<TwitterState>>>) -> String {
+    let twitter = twitter.read().unwrap();
+    dbg!(&twitter);
+    format!("{}", twitter.tweet_count)
+}
+
+async fn run_twitter(
+    ws: WebSocketUpgrade,
+    Path((id, name)): Path<(i64, String)>,
+    State(twitter): State<Arc<RwLock<TwitterState>>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| {
+        handle_twitter_socket(
+            socket,
+            FeedState {
+                tweets: twitter,
+                conn: TweetParams { room: id, name },
+            },
+        )
+    })
+}
+
+async fn handle_twitter_socket(socket: WebSocket, state: FeedState) {
+    #[derive(Deserialize)]
+    struct Msg {
+        message: String,
+    }
+
+    let tweets = state.tweets;
+
+    let (mut send, mut recv) = socket.split();
+
+    let out = tweets
+        .write()
+        .expect("could not establish write lock on data")
+        .rooms
+        .entry(state.conn.room)
+        .or_insert(broadcast::channel(100).0)
+        .clone();
+
+    let mut sub = out.subscribe();
+
+    let mut send_tweet = tokio::spawn(async move {
+        while let Ok(msg) = sub.recv().await {
+            tweets
+                .write()
+                .expect("could not establish write lock on data")
+                .increment();
+            if send.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    let mut recv_tweet = {
+        tokio::spawn(async move {
+            while let Some(Ok(Message::Text(msg))) = recv.next().await {
+                let msg: Msg = serde_json::from_str(msg.as_str())
+                    .expect("could not deserialize input message");
+                if msg.message.chars().count() > 128 {
+                    continue;
+                }
+                let msg = json!({"user":state.conn.name.clone(),"message":msg.message}).to_string();
+                let _ = out.send(msg);
+            }
+        })
+    };
+
+    tokio::select! {
+        _ = (&mut send_tweet) => recv_tweet.abort(),
+        _ = (&mut recv_tweet) => send_tweet.abort(),
+    };
 }
