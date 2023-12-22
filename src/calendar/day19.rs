@@ -27,7 +27,7 @@ pub fn router() -> Router {
     let ping_pong_state = PingPongAppState::new();
     let twitter_state = BirdAppState::new();
     let ping_pong_game = Router::new()
-        .route("/ping", get(ping))
+        .route("/ws/ping", get(ping))
         .with_state(ping_pong_state);
     let tweet = Router::new()
         .route("/views", get(views))
@@ -40,6 +40,7 @@ pub fn router() -> Router {
 
 #[axum::debug_handler]
 async fn ping(ws: WebSocketUpgrade, State(state): State<PingPongAppState>) -> Response {
+    dbg!("ping");
     ws.on_upgrade(move |socket| handle_ping(socket, state))
 }
 
