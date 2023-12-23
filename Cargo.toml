@@ -5,12 +5,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
-axum = { version = "0.6.20", features = ["multipart", "macros", "ws"] }
+axum = { version = "0.6.20", features = ["multipart", "macros", "ws", "headers"] }
 axum-template = { version = "2.0.0", features = ["tera"] }
 base64 = "0.21.5"
 chrono = "0.4.31"
 digest = "0.10.7"
 futures-util = "0.3.29"
+git2 = "0.18.1"
 image = "0.24.7"
 regex = "1.10.2"
 reqwest = "0.11.22"
@@ -21,6 +22,8 @@ shuttle-axum = "0.35.0"
 shuttle-runtime = "0.35.0"
 shuttle-shared-db = { version = "0.35.1", features = ["postgres", "postgres-rustls"] }
 sqlx = { version = "0.7.3", features = ["runtime-tokio-native-tls", "postgres"] }
+tar = "0.4.40"
+tempfile = "3.8.1"
 tera = "1.19.1"
 tokio = "1.28.2"
 tower-http = { version = "0.4.0", features = ["fs"] }
