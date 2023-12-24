@@ -4,7 +4,7 @@ use axum::{extract::Query, response::IntoResponse, Json};
 use serde_json::{json, Value};
 
 pub fn router() -> axum::Router {
-    axum::Router::new().route("/", axum::routing::post(day_five))
+    axum::Router::new().route("/5", axum::routing::post(day_five))
 }
 
 async fn day_five(
