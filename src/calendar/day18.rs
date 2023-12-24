@@ -37,7 +37,8 @@ struct RegionTotal {
 #[derive(Serialize, Deserialize, Clone, Debug, FromRow)]
 struct RegionTopN {
     region: String,
-    top_gifts: Vec<String>,
+    #[serde(rename = "top_gifts")]
+    region_top_n: Vec<String>,
 }
 
 pub fn router(pool: PgPool) -> Router {

@@ -1,3 +1,4 @@
+#![feature(slice_group_by)]
 use axum::Router;
 // use shuttle_runtime::CustomError;
 use sqlx::PgPool;
